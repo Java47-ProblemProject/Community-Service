@@ -41,6 +41,7 @@ public class KafkaConsumer {
                             c.setTotalMembers();
                             communityRepository.save(c);
                         });
+
                 this.profile = new ProfileDto();
             } else {
                 this.profile = data;
