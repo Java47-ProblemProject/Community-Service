@@ -19,15 +19,22 @@ public class SecurityConfiguration {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
         http.httpBasic(Customizer.withDefaults());
-        http.csrf(AbstractHttpConfigurer::disable);
+        http.csrf(AbstractHttpConfigurer::disable)
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(new CustomAuthenticationEntryPoint()));
         http.authorizeRequests(authorize -> authorize
-//                       //User section//
-                        .requestMatchers(HttpMethod.PUT, "/solution/addsolution/{problemId}")
-                        .access("@customSecurity.checkProblemId(#problemId)")
-                        .requestMatchers(HttpMethod.PUT, "/solution/editsolution/{profileId}/{problemId}/{solutionId}")
-                        .access("@customSecurity.checkSolutionAuthorAndProblemId(#problemId, #solutionId, #profileId)")
-                        .requestMatchers(HttpMethod.DELETE,"/solution/deletesolution/{profileId}/{problemId}/{solutionId}")
-                        .access("@customSecurity.checkSolutionAuthorAndProblemId(#problemId, #solutionId, #profileId)")
+                        .requestMatchers("/community/getcommunitiesnames")
+                        .permitAll()
+                        .requestMatchers("/community/getcommunities", "community/getcommunities/*")
+                        .authenticated()
+//                       //Administrative section//
+                        .requestMatchers(HttpMethod.POST, "/community/addcommunity")
+                        .access("hasAuthority('ADMINISTRATOR')")
+                        .requestMatchers(HttpMethod.PUT, "/community/editname/**")
+                        .access("hasAuthority('ADMINISTRATOR')")
+                        .requestMatchers(HttpMethod.PUT, "/community/editdescription/**")
+                        .access("hasAuthority('ADMINISTRATOR')")
+                        .requestMatchers(HttpMethod.DELETE, "/community/deletecommunity/{communityId}")
+                        .access("hasAuthority('ADMINISTRATOR')")
                         .anyRequest()
                         .authenticated()
         );

@@ -5,9 +5,12 @@ import org.springframework.web.bind.annotation.*;
 import telran.community.dto.*;
 import telran.community.service.CommunityService;
 
+import java.util.Set;
+
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/community")
+@CrossOrigin(origins = "http://127.0.0.1:5173/", allowedHeaders = "*")
 public class CommunityController {
     final CommunityService communityService;
 
@@ -36,8 +39,18 @@ public class CommunityController {
         return communityService.deleteCommunity(communityId);
     }
 
-    @GetMapping("/getcommunities")
-    public CommunityDto getCommunityById(String communityId) {
+    @GetMapping("/getcommunities/{communityId}")
+    public CommunityDto getCommunityById(@PathVariable String communityId) {
         return communityService.getCommunityById(communityId);
+    }
+
+    @GetMapping("/getcommunities")
+    public Set<CommunityDto> getAllCommunities() {
+        return communityService.getAllCommunities();
+    }
+
+    @GetMapping("/getcommunitiesnames")
+    public Set<String> getAllCommunitiesNames() {
+        return communityService.getAllCommunitiesNames();
     }
 }
