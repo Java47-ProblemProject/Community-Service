@@ -5,7 +5,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import telran.community.configuration.KafkaConsumer;
+import telran.community.kafka.KafkaConsumer;
 import telran.community.dao.CommunityRepository;
 import telran.community.dto.*;
 import telran.community.dto.exceptions.CommunityExistsException;
@@ -95,6 +95,6 @@ public class CommunityServiceImpl implements CommunityService, CommandLineRunner
 
     @Override
     public void run(String... args) throws Exception {
-        //communitiesToFill.fillAllCommunities();
+        communitiesToFill.fillAllCommunities();
     }
 }
