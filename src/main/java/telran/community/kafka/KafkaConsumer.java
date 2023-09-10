@@ -7,9 +7,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.annotation.Transactional;
 import telran.community.dao.CommunityCustomRepository;
 import telran.community.dao.CommunityRepository;
-import telran.community.kafka.accounting.ProfileDto;
 import telran.community.kafka.kafkaData.problemDataDto.ProblemMethodName;
 import telran.community.kafka.kafkaData.problemDataDto.ProblemServiceDataDto;
+import telran.community.kafka.profileDataDto.Activity;
+import telran.community.kafka.profileDataDto.ProfileDataDto;
+import telran.community.kafka.profileDataDto.ProfileMethodName;
 import telran.community.security.JwtTokenService;
 
 import java.util.Map;
@@ -27,57 +29,34 @@ public class KafkaConsumer {
     private final CommunityRepository communityRepository;
     private final KafkaProducer kafkaProducer;
     private final JwtTokenService jwtTokenService;
-    private ProfileDto profile;
-    private String token;
-    private ProblemServiceDataDto problemData;
+    private ProfileDataDto profile;
 
     @Bean
     @Transactional
-    protected Consumer<Map<String, ProfileDto>> receiveProfile() {
+    protected Consumer<ProfileDataDto> receiveProfile() {
         return data -> {
-            if (!data.isEmpty()) {
-                Map.Entry<String, ProfileDto> entry = data.entrySet().iterator().next();
-                if (entry.getValue().getUsername().equals("DELETED_PROFILE")) {
-                    //profile was deleted ->
-                    jwtTokenService.deleteCurrentProfileToken(entry.getValue().getEmail());
-                    Set<String> problemsToRemove = entry.getValue().getActivities().entrySet().stream()
-                            .filter(e -> "PROBLEM".equals(e.getValue().getType()) && e.getValue().getAction().contains("AUTHOR"))
-                            .map(Map.Entry::getKey)
-                            .collect(Collectors.toSet());
-                    entry.getValue().getCommunities().stream()
-                            .map(communityRepository::findById)
-                            .filter(Optional::isPresent)
-                            .map(Optional::get)
-                            .forEach(c -> {
-                                c.removeMember(entry.getValue().getEmail());
-                                c.setTotalMembers();
-                                problemsToRemove.forEach(c::removeProblem);
-                                c.setTotalProblems();
-                                communityRepository.save(c);
-                            });
-                    this.profile = null;
-                    this.token = null;
-                } else {
-                    this.profile = entry.getValue();
-                    if (!entry.getKey().isEmpty()) {
-                        this.token = entry.getKey();
-                    }
-                    jwtTokenService.setCurrentProfileToken(this.profile.getEmail(), this.token);
-                    System.out.println("Token pushed - " + this.token);
-                    entry.getValue().getCommunities().stream()
-                            .map(communityRepository::findById)
-                            .filter(Optional::isPresent)
-                            .map(Optional::get)
-                            .forEach(c -> {
-                                if (!c.getMembers().contains(entry.getValue().getEmail())) {
-                                    c.addMember(entry.getValue().getEmail());
-                                    c.setTotalMembers();
-                                    communityRepository.save(c);
-                                }
-                            });
-                }
+            ProfileMethodName methodName = data.getMethodName();
+            String email = data.getEmail();
+            Map<String, Activity> activities = data.getActivities();
+            Set<String> communities = data.getCommunities();
+            if (methodName.equals(ProfileMethodName.SET_PROFILE)) {
+                jwtTokenService.setCurrentProfileToken(data.getEmail(), data.getToken());
+                this.profile = data;
+                this.profile.setToken("");
+                checkAndSetCommunities(email, communities);
             }
-
+            if (methodName.equals(ProfileMethodName.UNSET_PROFILE)) {
+                jwtTokenService.deleteCurrentProfileToken(email);
+                this.profile = null;
+            }
+            if (methodName.equals(ProfileMethodName.EDIT_PROFILE_COMMUNITIES)) {
+                checkAndSetCommunities(email, communities);
+            }
+            if (methodName.equals(ProfileMethodName.DELETE_PROFILE)) {
+                jwtTokenService.deleteCurrentProfileToken(email);
+                deleteAllAuthorizedProblems(activities, communities, email);
+                this.profile = null;
+            }
         };
     }
 
@@ -89,29 +68,69 @@ public class KafkaConsumer {
             ProblemMethodName method = data.getMethodName();
             Set<String> communities = data.getCommunities();
             if (method.equals(ProblemMethodName.ADD_PROBLEM) || method.equals(ProblemMethodName.EDIT_PROBLEM)) {
-                communities.stream()
-                        .map(communityRepository::findById)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .forEach(c -> {
-                            if (!c.getProblems().contains(problemId)) {
-                                c.addProblem(problemId);
-                                c.setTotalProblems();
-                                communityRepository.save(c);
-                            }
-                        });
+                checkAndSetProblems(communities, problemId);
             }
             if (method.equals(ProblemMethodName.DELETE_PROBLEM)) {
-                communities.stream()
-                        .map(communityRepository::findById)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .forEach(c -> {
-                            c.removeProblem(problemId);
-                            c.setTotalProblems();
-                            communityRepository.save(c);
-                        });
+                deleteAllProblems(communities, problemId);
             }
         };
+    }
+
+    private void checkAndSetCommunities(String email, Set<String> communities) {
+        communities.stream()
+                .map(communityRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(c -> {
+                    if (!c.getMembers().contains(email)) {
+                        c.addMember(email);
+                        c.setTotalMembers();
+                        communityRepository.save(c);
+                    }
+                });
+    }
+
+    private void deleteAllAuthorizedProblems(Map<String, Activity> activities, Set<String> communities, String email) {
+        Set<String> problemsToRemove = activities.entrySet().stream()
+                .filter(e -> "PROBLEM".equals(e.getValue().getType()) && e.getValue().getAction().contains("AUTHOR"))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        communities.stream()
+                .map(communityRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(c -> {
+                    c.removeMember(email);
+                    c.setTotalMembers();
+                    problemsToRemove.forEach(c::removeProblem);
+                    c.setTotalProblems();
+                    communityRepository.save(c);
+                });
+    }
+
+    private void checkAndSetProblems(Set<String> communities, String problemId) {
+        communities.stream()
+                .map(communityRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(c -> {
+                    if (!c.getProblems().contains(problemId)) {
+                        c.addProblem(problemId);
+                        c.setTotalProblems();
+                        communityRepository.save(c);
+                    }
+                });
+    }
+
+    private void deleteAllProblems(Set<String> communities, String problemId) {
+        communities.stream()
+                .map(communityRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(c -> {
+                    c.removeProblem(problemId);
+                    c.setTotalProblems();
+                    communityRepository.save(c);
+                });
     }
 }

@@ -95,6 +95,6 @@ public class CommunityServiceImpl implements CommunityService, CommandLineRunner
 
     @Override
     public void run(String... args) throws Exception {
-        communitiesToFill.fillAllCommunities();
+        //communitiesToFill.fillAllCommunities();
     }
 }
