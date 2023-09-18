@@ -67,7 +67,7 @@ public class KafkaConsumer {
             String problemId = data.getProblemId();
             ProblemMethodName method = data.getMethodName();
             Set<String> communities = data.getCommunities();
-            if (method.equals(ProblemMethodName.ADD_PROBLEM) || method.equals(ProblemMethodName.EDIT_PROBLEM)) {
+            if (method.equals(ProblemMethodName.ADD_PROBLEM) || method.equals(ProblemMethodName.EDIT_PROBLEM) || method.equals(ProblemMethodName.GET_PROBLEM)) {
                 checkAndSetProblems(communities, problemId);
             }
             if (method.equals(ProblemMethodName.DELETE_PROBLEM)) {

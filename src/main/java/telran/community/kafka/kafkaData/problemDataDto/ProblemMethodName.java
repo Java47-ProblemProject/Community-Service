@@ -2,6 +2,7 @@ package telran.community.kafka.kafkaData.problemDataDto;
 
 public enum ProblemMethodName {
     ADD_PROBLEM,
+    GET_PROBLEM,
     EDIT_PROBLEM,
     DELETE_PROBLEM,
     ADD_LIKE,
