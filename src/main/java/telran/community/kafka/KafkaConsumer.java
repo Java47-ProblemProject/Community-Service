@@ -17,6 +17,7 @@ import telran.community.security.JwtTokenService;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -29,33 +30,36 @@ public class KafkaConsumer {
     private final CommunityRepository communityRepository;
     private final KafkaProducer kafkaProducer;
     private final JwtTokenService jwtTokenService;
-    private ProfileDataDto profile;
+    private final Map<String, ProfileDataDto> profiles = new ConcurrentHashMap<>();
 
     @Bean
     @Transactional
     protected Consumer<ProfileDataDto> receiveProfile() {
         return data -> {
-            ProfileMethodName methodName = data.getMethodName();
             String email = data.getEmail();
             Map<String, Activity> activities = data.getActivities();
             Set<String> communities = data.getCommunities();
+            ProfileMethodName methodName = data.getMethodName();
+            ProfileDataDto profile = this.profiles.get(email);
+            if (!profiles.containsKey(email)) {
+                this.profiles.put(email, data);
+                profile = data;
+            }
             if (methodName.equals(ProfileMethodName.SET_PROFILE)) {
-                jwtTokenService.setCurrentProfileToken(data.getEmail(), data.getToken());
-                this.profile = data;
-                this.profile.setToken("");
+                jwtTokenService.setCurrentProfileToken(email, data.getToken());
+                this.profiles.get(email).setToken("");
                 checkAndSetCommunities(email, communities);
-            }
-            if (methodName.equals(ProfileMethodName.UNSET_PROFILE)) {
+            } else if (methodName.equals(ProfileMethodName.UNSET_PROFILE)) {
                 jwtTokenService.deleteCurrentProfileToken(email);
-                this.profile = null;
-            }
-            if (methodName.equals(ProfileMethodName.EDIT_PROFILE_COMMUNITIES)) {
+                this.profiles.remove(email);
+            } else if (methodName.equals(ProfileMethodName.UPDATED_PROFILE)) {
+                this.profiles.put(email, profile);
+            } else if (methodName.equals(ProfileMethodName.EDIT_PROFILE_COMMUNITIES)) {
                 checkAndSetCommunities(email, communities);
-            }
-            if (methodName.equals(ProfileMethodName.DELETE_PROFILE)) {
+            } else if (methodName.equals(ProfileMethodName.DELETE_PROFILE)) {
                 jwtTokenService.deleteCurrentProfileToken(email);
                 deleteAllAuthorizedProblems(activities, communities, email);
-                this.profile = null;
+                this.profiles.remove(email);
             }
         };
     }

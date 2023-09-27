@@ -13,6 +13,7 @@ import telran.community.dto.exceptions.NoSuchCommunityException;
 import telran.community.model.CommunitiesToFill;
 import telran.community.model.Community;
 
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -85,12 +86,12 @@ public class CommunityServiceImpl implements CommunityService, CommandLineRunner
 
     @Override
     public Set<CommunityDto> getAllCommunities() {
-        return communityRepository.findAll().stream().map(e -> modelMapper.map(e, CommunityDto.class)).collect(Collectors.toSet());
+        return communityRepository.findAll().stream().map(e -> modelMapper.map(e, CommunityDto.class)).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     @Override
     public Set<String> getAllCommunitiesNames() {
-        return communityRepository.findAll().stream().map(Community::getName).collect(Collectors.toSet());
+        return communityRepository.findAll().stream().map(Community::getName).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     @Override
